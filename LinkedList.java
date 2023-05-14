@@ -1,86 +1,57 @@
 
 public class LinkedList<T> implements Collection<T>
 {
-    interface Node<T>
-    {
-        void iterate(Consumer<T> consumer);
-    }
-    static class EmptyNode<T> implements Node<T>
-    {
-        @Override
-        public void iterate(Consumer<T> consumer) { }
-    }
-    interface NodeAction<T>
-    {
-        void call(Node<T> node);
-    }
-    interface NodeProvider<T>
-    {
-        void provide(NodeAction<T> action);
-    }
-    static class ChainNode<T> implements Node<T>
-    {
-        NodeProvider<T> provider;
-        T item;
-
-        public ChainNode(T item, NodeProvider<T> provider)
-        {
-            this.provider = provider;
-            this.item = item;
-        }
-
-        @Override
-        public void iterate(Consumer<T> consumer)
-        {
-            consumer.item(item);
-            provider.provide(node -> node.iterate(consumer));
-        }
-    }
-
-    interface RemoveHandler
+    interface RemoveAction
     {
         void remove();
     }
-
     interface ItemFactory<T>
     {
-        T create(RemoveHandler remove);
+        T create(RemoveAction remove);
     }
-
-    static class RemoveConditionNodeProvider<T> implements NodeProvider<T>
+    class Node
     {
-        boolean condition;
-        NodeProvider<T> last;
-        Node<T> current;
+        private T item;
+        private boolean hasItem;
+        Node next;
 
-        public RemoveConditionNodeProvider(NodeProvider<T> last, ItemFactory<T> factory) {
-            this.last = last;
-            this.current = new ChainNode<T>(factory.create(() -> this.condition = true), last);
-        }
-
-        @Override
-        public void provide(NodeAction<T> action)
+        void put(T item)
         {
-            if(condition) last.provide(action);
-            else action.call(current);
+            hasItem = true;
+            this.item = item;
+        }
+
+        void iterate(Consumer<T> consumer)
+        {
+            if(hasItem) consumer.item(item);
+            if(next != null) next.iterate(consumer);
         }
     }
-    static class EmptyNodeProvider<T> implements NodeProvider<T>
+
+    public LinkedList()
     {
-        @Override
-        public void provide(NodeAction<T> action) { action.call(new EmptyNode<T>()); }
+        first = last = new Node();
     }
 
-    NodeProvider<T> last = new EmptyNodeProvider<T>();
+    Node first;
+    Node last;
 
     void addItem(ItemFactory<T> factory)
     {
-        last = new RemoveConditionNodeProvider<T>(last, factory);
+        Node next = new Node();
+        Node prev = last;
+        T item = factory.create(() ->
+        {
+            prev.next = next.next;
+        });
+        next.put(item);
+        last.next = next;
+        last = next;
     }
 
     @Override
     public void iterate(Consumer<T> consumer)
     {
-        last.provide(node -> node.iterate(consumer));
+        first.iterate(consumer);
     }
 }
